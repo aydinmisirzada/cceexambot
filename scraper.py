@@ -10,9 +10,9 @@ from utils import print_results
 
 options = Options()
 options.headless = True  # Enable headless mode for invisible operation
-options.add_argument("--window-size=1920,1200")  # Define the window size of the browser
-
-DRIVER_PATH = '/opt/homebrew/bin/chromedriver'
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-gpu")
+options.add_argument('--disable-dev-shm-usage')
 
 LANG_LEVELS_WHITELIST = ['A1', 'A2', 'B1', 'B2', 'C1']
 
