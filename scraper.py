@@ -8,6 +8,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select, WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+from utils import transform_data_to_dict
+
 
 options = Options()
 options.headless = True  # Enable headless mode for invisible operation
@@ -18,7 +20,7 @@ options.add_argument('--disable-dev-shm-usage')
 LANG_LEVELS_WHITELIST = ['A1', 'A2', 'B1', 'B2', 'C1']
 
 
-def fetch_seats_by_language_level(levels: list[str]):
+async def fetch_seats_by_language_level(levels: list[str]):
     # Check if the provided language levels are valid
     valid_levels = {'A1', 'A2', 'B1', 'B2', 'C1'}
     if not all(level in valid_levels for level in levels):
@@ -129,15 +131,21 @@ def write_data_to_db(data):
     conn.close()
 
 
-def get_or_fetch_seats(levels: list[str]):
+async def get_or_fetch_seats(levels: list[str]):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
+
+    # Check if any record has last_fetch_time older than 30 minutes
+    cursor.execute('''
+        SELECT *
+        FROM exam_data
+    ''')
+
+    is_db_empty = len(cursor.fetchall()) == 0
 
     # Get the current time and calculate the timestamp for 30 minutes ago
     current_timestamp = int(datetime.now().timestamp())
     thirty_minutes_ago = current_timestamp - 1800
-
-    print()
 
     # Check if any record has last_fetch_time older than 30 minutes
     cursor.execute('''
@@ -149,11 +157,9 @@ def get_or_fetch_seats(levels: list[str]):
     outdated_data = cursor.fetchall()
     outdated_levels = [row[0] for row in outdated_data]
 
-    print('outdated_data', outdated_data)
-
-    if set(levels).intersection(outdated_levels):
+    if set(levels).intersection(outdated_levels) or is_db_empty:
         # Fetch new data
-        fetched_data = fetch_seats_by_language_level(levels)
+        fetched_data = await fetch_seats_by_language_level(levels)
 
         # Write new data to the database
         write_data_to_db(fetched_data)
@@ -172,12 +178,10 @@ def get_or_fetch_seats(levels: list[str]):
 
     conn.close()
 
-    return results
+    return transform_data_to_dict(results)
 
 
 if __name__ == '__main__':
     lvls = ['A1', 'A2']
 
     n = get_or_fetch_seats(lvls)
-
-    print(n)

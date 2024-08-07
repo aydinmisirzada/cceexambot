@@ -41,5 +41,23 @@ def print_for_telegram(data: dict[str, list[list[str]]]) -> str:
     return result
 
 
+def transform_data_to_dict(rows):
+    # Initialize an empty dictionary
+    result_dict = {}
+
+    # Iterate through each row of data
+    for row in rows:
+        exam_date, language_level, number_of_seats = row
+
+        # Check if the language_level is already a key in the dictionary
+        if language_level not in result_dict:
+            result_dict[language_level] = []
+
+        # Append the new entry to the list of the respective language_level
+        result_dict[language_level].append([exam_date, number_of_seats])
+
+    return result_dict
+
+
 def get_help_messages():
     return "I can help you track and get the latest info about CCE Czech language exams.\n\nThe following commands are available:\n\n/checkstatus - Get current number of available seats\n\n/track - Subscribe to status updates. As soon as there's a free seat, we'll notify you. The data is updated every 1 hour.\n\n/track A1 A2 - Subscribe to status updates for select language levels\n\n/untrack - Unsubscribe from updates"

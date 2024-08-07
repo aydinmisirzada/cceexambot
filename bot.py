@@ -14,18 +14,32 @@ BOT_TOKEN = os.getenv('TELEGRAM_TOKEN')
 
 
 async def _checkstatus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    msg = await update.effective_chat.send_message(text="_Loading\.\.\._", parse_mode=ParseMode.MARKDOWN_V2)
+    msg = await update.effective_chat.send_message(
+        text="_Loading\.\.\._",
+        parse_mode=ParseMode.MARKDOWN_V2
+    )
 
     levels = LANG_LEVELS_WHITELIST
-
-    if (context.args):
-        levels = filter(lambda x: x in LANG_LEVELS_WHITELIST, context.args)
-
-    result = get_or_fetch_seats(levels)
-    text = print_for_telegram(result)
-
     chat_id = update.effective_chat.id
     message_id = msg.id
+
+    if context.args:
+        levels = [x.upper()
+                  for x in context.args if x.upper() in LANG_LEVELS_WHITELIST]
+
+        if len(levels) == 0:
+            await context.bot.edit_message_text(
+                text="You've provided incorrect data",
+                message_id=message_id,
+                chat_id=chat_id,
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+
+            return
+
+    result = await get_or_fetch_seats(levels)
+    text = print_for_telegram(result)
+
     await context.bot.edit_message_text(
         text=text,
         message_id=message_id,
