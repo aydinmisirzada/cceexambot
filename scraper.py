@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 import sqlite3
 import time
@@ -12,7 +13,7 @@ from utils import transform_data_to_dict
 
 
 options = Options()
-options.headless = True  # Enable headless mode for invisible operation
+options.add_argument("--headless")
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-gpu")
 options.add_argument('--disable-dev-shm-usage')
@@ -184,4 +185,5 @@ async def get_or_fetch_seats(levels: list[str]):
 if __name__ == '__main__':
     lvls = ['A1', 'A2']
 
-    n = get_or_fetch_seats(lvls)
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(get_or_fetch_seats(lvls))
