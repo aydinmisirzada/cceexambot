@@ -1,28 +1,43 @@
+import os
 import time
-import schedule
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 
-from utils import generate_time_list
+from scraper import LANG_LEVELS_WHITELIST, fetch_seats_by_language_level, write_data_to_db
 
 
 class DataFetcher:
-    def __init__(self, notify_callback) -> None:
-        self.notify_callback = notify_callback
+    def __init__(self, interval) -> None:
+        self.interval = interval
+        self.scheduler = BackgroundScheduler()
+        self.scheduler.start()
 
     def fetch_data(self):
-        pass
 
-    def check_condition(self):
-        pass
+        fetched_data = fetch_seats_by_language_level(LANG_LEVELS_WHITELIST)
+        write_data_to_db(fetched_data)
 
-    def check_and_notify(self):
-        pass
+    def schedule_data_fetch(self):
+        self.scheduler.add_job(
+            self.fetch_data,
+            trigger=IntervalTrigger(seconds=self.interval),
+        )
 
-    def schedule_data_check(self):
-        times = generate_time_list("08:00", "18:00", 30)
+        try:
+            while True:
+                time.sleep(1)
+        except (KeyboardInterrupt, SystemExit):
+            self.scheduler.shutdown()
 
-        for t in times:
-            schedule.every().day.at(t).do(self.check_and_notify)
 
-        while True:
-            schedule.run_pending()
-            time.sleep(1)
+def start_fetcher():
+    fetch_interval = os.getenv('FETCH_INTERVAL')
+
+    if fetch_interval:
+        print('Starting the fetcher...')
+        fetcher = DataFetcher(int(fetch_interval))
+        fetcher.schedule_data_fetch()
+
+
+if __name__ == "__main__":
+    start_fetcher()

@@ -13,3 +13,11 @@ CREATE TABLE IF NOT EXISTS bot_users (
     chat_id INTEGER NOT NULL, -- ID of the chat with the user
     last_usage INTEGER NOT NULL -- Unix timestamp of when the user last interacted with the telegram bot
 );
+
+-- Create the subscriptions table
+CREATE TABLE IF NOT EXISTS subscriptions (
+    subscription_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    subscriber_id INTEGER NOT NULL UNIQUE,
+    subscribed_levels TEXT NOT NULL,
+    FOREIGN KEY (subscriber_id) REFERENCES bot_users(subscriber_id)
+);

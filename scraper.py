@@ -1,7 +1,8 @@
-import asyncio
 from datetime import datetime
 import sqlite3
 import time
+
+from urllib3.exceptions import ProtocolError, MaxRetryError
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -21,8 +22,7 @@ options.add_argument('--disable-dev-shm-usage')
 LANG_LEVELS_WHITELIST = ['A1', 'A2', 'B1', 'B2', 'C1']
 
 
-async def fetch_seats_by_language_level(levels: list[str]):
-    # Check if the provided language levels are valid
+def fetch_seats_by_language_level(levels: list[str]):
     valid_levels = {'A1', 'A2', 'B1', 'B2', 'C1'}
     if not all(level in valid_levels for level in levels):
         raise ValueError(
@@ -31,35 +31,48 @@ async def fetch_seats_by_language_level(levels: list[str]):
     result = {}  # level -> str[][]
     driver = webdriver.Chrome(options=options)
 
-    driver.get("https://ujop.cuni.cz/UJOP-371.html?ujopcmsid=4")
-    time.sleep(1)
-
-    for l in levels:
-        result[l] = []
-        level_element = Select(driver.find_element(By.ID, 'select_uroven'))
-        level_element.select_by_value(l)
-
-        termin_element = driver.find_element(By.ID, 'select_termin')
-        is_termin_selectable = termin_element.is_displayed() and termin_element.is_enabled()
-
-        termin_select = Select(termin_element)
-        if is_termin_selectable:
-            for index in range(1, len(termin_select.options)):
-                termin_select.select_by_index(index)
-                num_of_slots_element = WebDriverWait(driver, 10).until(
-                    EC.visibility_of_element_located((By.ID, 'qxid')))
-
-                # wait for result to load
-                time.sleep(1)
-
-                result[l].append(
-                    [termin_select.options[index].text, num_of_slots_element.text])
-        else:
-            num_of_slots_element = WebDriverWait(driver, 10).until(
-                EC.visibility_of_element_located((By.ID, 'qxid')))
+    retries = 3
+    for attempt in range(retries):
+        try:
+            driver.get("https://ujop.cuni.cz/UJOP-371.html?ujopcmsid=4")
             time.sleep(1)
-            result[l].append(
-                [termin_select.first_selected_option.text, num_of_slots_element.text])
+
+            for l in levels:
+                result[l] = []
+                level_element = Select(
+                    driver.find_element(By.ID, 'select_uroven'))
+                level_element.select_by_value(l)
+
+                termin_element = driver.find_element(By.ID, 'select_termin')
+                is_termin_selectable = termin_element.is_displayed() and termin_element.is_enabled()
+
+                termin_select = Select(termin_element)
+                if is_termin_selectable:
+                    for index in range(1, len(termin_select.options)):
+                        termin_select.select_by_index(index)
+                        num_of_slots_element = WebDriverWait(driver, 10).until(
+                            EC.visibility_of_element_located((By.ID, 'qxid')))
+
+                        time.sleep(1)
+
+                        result[l].append(
+                            [termin_select.options[index].text, num_of_slots_element.text])
+                else:
+                    num_of_slots_element = WebDriverWait(driver, 10).until(
+                        EC.visibility_of_element_located((By.ID, 'qxid')))
+                    time.sleep(1)
+                    result[l].append(
+                        [termin_select.first_selected_option.text, num_of_slots_element.text])
+
+            break  # If successful, exit the retry loop
+        except (ProtocolError, MaxRetryError) as e:
+            print(f"Attempt {attempt + 1}/{retries} failed: {e}")
+            time.sleep(5)  # Wait before retrying
+            if attempt == retries - 1:
+                raise  # If all retries fail, raise the exception
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+            break  # Exit if a different error occurs
 
     driver.quit()
 
@@ -81,7 +94,7 @@ def get_seats_from_db(language_levels: list[str]):
 
     # Execute the query with the provided language levels
     query = f'''
-        SELECT id, exam_date, language_level, number_of_seats
+        SELECT exam_date, language_level, number_of_seats
         FROM exam_data
         WHERE language_level IN ({placeholders})
     '''
@@ -91,7 +104,21 @@ def get_seats_from_db(language_levels: list[str]):
 
     conn.close()
 
-    return results
+    return transform_data_to_dict(results)
+
+
+def get_total_number_of_seats_for_level(data: dict[str, list[list[str]]]):
+    result = {}
+    for lang_level in data:
+        total = 0
+
+        for entry in data[lang_level]:
+            _, capacity = entry
+            total += int(capacity)
+
+        result[lang_level] = total
+
+    return result
 
 
 def write_data_to_db(data):
@@ -132,7 +159,7 @@ def write_data_to_db(data):
     conn.close()
 
 
-async def get_or_fetch_seats(levels: list[str]):
+def get_or_fetch_seats(levels: list[str]):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
 
@@ -160,7 +187,7 @@ async def get_or_fetch_seats(levels: list[str]):
 
     if set(levels).intersection(outdated_levels) or is_db_empty:
         # Fetch new data
-        fetched_data = await fetch_seats_by_language_level(levels)
+        fetched_data = fetch_seats_by_language_level(levels)
 
         # Write new data to the database
         write_data_to_db(fetched_data)
@@ -185,5 +212,4 @@ async def get_or_fetch_seats(levels: list[str]):
 if __name__ == '__main__':
     lvls = ['A1', 'A2']
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(get_or_fetch_seats(lvls))
+    get_or_fetch_seats(lvls)
