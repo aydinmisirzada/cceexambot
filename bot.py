@@ -61,6 +61,9 @@ async def _help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def _track(update: Update, context: ContextTypes.DEFAULT_TYPE):
     interval = os.getenv('FETCH_INTERVAL')
 
+    if not interval:
+        print('No FETCH_INTERVAL provided')
+
     # If the user provided specific levels, use them; otherwise, track all levels
     if context.args:
         levels = [level for level in context.args if level in LANG_LEVELS_WHITELIST]
@@ -81,7 +84,7 @@ async def _track(update: Update, context: ContextTypes.DEFAULT_TYPE):
     job_removed = remove_job_if_exists(str(chat_id), context)
     context.job_queue.run_repeating(
         check_db_and_notify,
-        interval,
+        int(interval),
         chat_id=chat_id,
         name=str(subscriber_id)
     )
