@@ -150,6 +150,15 @@ def get_last_fetch_time():
         return None
 
 
+def clear_subscriptions():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('DELETE FROM subscriptions')
+
+    conn.close()
+
+
 def create_tables_from_file(sql_file):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()

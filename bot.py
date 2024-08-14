@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, ContextTyp
 from telegram.constants import ParseMode
 
 from fetcher import start_fetcher
-from init_db import add_subscription, add_user_if_not_exists, delete_subcription, get_user_subscription, get_total_bot_users, get_active_bot_users, get_total_subscriptions, get_last_fetch_time
+from init_db import add_subscription, add_user_if_not_exists, clear_subscriptions, delete_subcription, get_user_subscription, get_total_bot_users, get_active_bot_users, get_total_subscriptions, get_last_fetch_time
 from scraper import LANG_LEVELS_WHITELIST, get_total_number_of_seats_for_level, get_seats_from_db, get_or_fetch_seats
 
 from utils import get_help_messages, print_for_telegram
@@ -89,7 +89,7 @@ async def _track(update: Update, context: ContextTypes.DEFAULT_TYPE):
     job_removed = remove_job_if_exists(str(chat_id), context)
     context.job_queue.run_repeating(
         check_db_and_notify,
-        int(interval),
+        int(10),
         chat_id=chat_id,
         name=str(subscriber_id)
     )
@@ -146,7 +146,7 @@ async def check_db_and_notify(context: ContextTypes.DEFAULT_TYPE) -> None:
             print('No seats found for', l)
 
     if text:
-        text += '\n[Register now!](https://ujop.cuni.cz/UJOP-371.html?ujopcmsid=4)'
+        text += '\n[Register now\!](https://ujop.cuni.cz/UJOP-371.html?ujopcmsid=4)'
         await context.bot.send_message(job.chat_id, text=text, parse_mode=ParseMode.MARKDOWN_V2)
 
         delete_subcription(subscriber_id)
@@ -184,8 +184,10 @@ async def _adminstats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 if __name__ == '__main__':
-    print("Initializing the bot...")
+    print("Clearing up the database...")
+    clear_subscriptions()
 
+    print("Initializing the bot...")
     application = Application.builder().token(BOT_TOKEN).build()
 
     application.add_handler(CommandHandler(["start", "help"], _help))
