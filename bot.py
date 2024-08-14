@@ -89,7 +89,7 @@ async def _track(update: Update, context: ContextTypes.DEFAULT_TYPE):
     job_removed = remove_job_if_exists(str(chat_id), context)
     context.job_queue.run_repeating(
         check_db_and_notify,
-        int(10),
+        int(interval),
         chat_id=chat_id,
         name=str(subscriber_id)
     )
