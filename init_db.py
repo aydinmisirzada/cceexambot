@@ -1,6 +1,8 @@
 import sqlite3
 import time
 
+from datetime import datetime, timedelta
+
 
 def get_db_connection():
     return sqlite3.connect('bot_data.db')
@@ -30,9 +32,6 @@ def add_subscription(subscriber_id, levels: list[str]):
     cursor = conn.cursor()
 
     subscribed_levels = ','.join(levels)
-
-    print('subscribed_levels', subscribed_levels)
-    print('subscriber_id', subscriber_id)
 
     cursor.execute('''
         INSERT INTO subscriptions (subscriber_id, subscribed_levels)
@@ -85,6 +84,70 @@ def get_user_subscription(subscriber_id):
     s = [sub for sub in subscriptions if sub[0] == subscriber_id]
 
     return s[0]
+
+
+def get_total_bot_users():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT COUNT(*) FROM bot_users')
+    total_users = cursor.fetchone()[0]
+
+    conn.close()
+    return total_users
+
+
+def get_active_bot_users():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Calculate the timestamp for 24 hours ago
+    twenty_four_hours_ago = datetime.now() - timedelta(hours=24)
+
+    print('twenty_four_hours_ago', twenty_four_hours_ago)
+
+    cursor.execute('''
+        SELECT COUNT(*)
+        FROM bot_users
+        WHERE last_usage > ?
+    ''', (twenty_four_hours_ago.timestamp(),))
+
+    active_users = cursor.fetchone()[0]
+
+    conn.close()
+    return active_users
+
+
+def get_total_subscriptions():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT COUNT(*) FROM subscriptions')
+    total_subscriptions = cursor.fetchone()[0]
+
+    conn.close()
+    return total_subscriptions
+
+
+def get_last_fetch_time():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Query to get the most recent last_fetch_time from the exam_data table
+    cursor.execute('SELECT MAX(last_fetch_time) FROM exam_data')
+    last_fetch_timestamp = cursor.fetchone()[0]
+
+    conn.close()
+
+    if last_fetch_timestamp is not None:
+        # Convert the Unix timestamp to a datetime object
+        last_fetch_time = datetime.fromtimestamp(last_fetch_timestamp)
+        # Format the datetime object to a string with both date and time
+        formatted_last_fetch_time = last_fetch_time.strftime(
+            '%Y-%m-%d %H:%M:%S')
+        return formatted_last_fetch_time
+    else:
+        return None
 
 
 def create_tables_from_file(sql_file):

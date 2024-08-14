@@ -3,11 +3,11 @@ import os
 from dotenv import load_dotenv
 
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from telegram.constants import ParseMode
 
 from fetcher import start_fetcher
-from init_db import add_subscription, add_user_if_not_exists, delete_subcription, get_user_subscription
+from init_db import add_subscription, add_user_if_not_exists, delete_subcription, get_user_subscription, get_total_bot_users, get_active_bot_users, get_total_subscriptions, get_last_fetch_time
 from scraper import LANG_LEVELS_WHITELIST, get_total_number_of_seats_for_level, get_seats_from_db, get_or_fetch_seats
 
 from utils import get_help_messages, print_for_telegram
@@ -18,6 +18,8 @@ BOT_TOKEN = os.getenv('TELEGRAM_TOKEN')
 
 
 async def _checkstatus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    add_user_if_not_exists(update.effective_user.id, update.effective_chat.id)
+
     msg = await update.effective_chat.send_message(
         text="_Loading\.\.\. this may take a minute_",
         parse_mode=ParseMode.MARKDOWN_V2
@@ -53,12 +55,15 @@ async def _checkstatus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def _help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    add_user_if_not_exists(update.effective_user.id, update.effective_chat.id)
     await update.effective_chat.send_message(text=get_help_messages())
 
 # Main function to handle the /track command
 
 
 async def _track(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    add_user_if_not_exists(update.effective_user.id, update.effective_chat.id)
+
     interval = os.getenv('FETCH_INTERVAL')
 
     if not interval:
@@ -102,6 +107,8 @@ async def _track(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _untrack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     subscriber_id = update.effective_user.id
     chat_id = update.effective_chat.id
+
+    add_user_if_not_exists(subscriber_id, chat_id)
 
     delete_subcription(subscriber_id)
 
@@ -156,6 +163,26 @@ def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     return True
 
 
+async def _adminstats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    bot_owner_id = os.getenv('OWNER_ID')
+
+    if update.effective_message.from_user.id != int(bot_owner_id):
+        await update.effective_chat.send_message(
+            text="This feature is available only for admin",
+        )
+        return
+
+    total_users = get_total_bot_users()
+    active_users = get_active_bot_users()
+    subscriptions = get_total_subscriptions()
+    last_fetch_time = get_last_fetch_time()
+
+    text = f"Total users: {total_users}\nActive users: {active_users}\nSubscriptions: {subscriptions}\nLast data fetch time: {last_fetch_time}"
+
+    await update.effective_chat.send_message(
+        text=text,
+    )
+
 if __name__ == '__main__':
     print("Initializing the bot...")
 
@@ -165,6 +192,8 @@ if __name__ == '__main__':
     application.add_handler(CommandHandler('checkstatus', _checkstatus))
     application.add_handler(CommandHandler('track', _track))
     application.add_handler(CommandHandler('untrack', _untrack))
+    application.add_handler(MessageHandler(
+        filters.Text(['adminstats']), _adminstats))
 
     # Start the data fetcher in a separate thread
     fetcher_process = Process(target=start_fetcher)
