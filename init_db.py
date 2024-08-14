@@ -155,6 +155,7 @@ def clear_subscriptions():
     cursor = conn.cursor()
 
     cursor.execute('DELETE FROM subscriptions')
+    conn.commit()
 
     conn.close()
 
